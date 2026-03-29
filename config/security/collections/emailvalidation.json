@@ -1,0 +1,117 @@
+{
+  "global": [
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "aol.com",
+    "icloud.com",
+    "protonmail.com",
+    "proton.me"
+  ],
+
+  "general_free": [
+    "mail.com",
+    "zoho.com",
+    "yandex.com",
+    "gmx.com",
+    "gmx.net",
+    "gmx.us",
+    "inbox.com",
+    "fastmail.com",
+    "tutanota.com",
+    "tutamail.com",
+    "disroot.org",
+    "mailfence.com",
+    "startmail.com",
+    "hushmail.com",
+    "runbox.com"
+  ],
+
+  "region": [
+    "yahoo.co.uk",
+    "yahoo.co.in",
+    "yahoo.com.au",
+    "yahoo.fr",
+    "yahoo.de",
+    "hotmail.co.uk",
+    "hotmail.fr",
+    "hotmail.de",
+    "hotmail.es",
+    "hotmail.it",
+    "live.com",
+    "live.co.uk",
+    "live.in",
+    "rediffmail.com",
+    "web.de",
+    "t-online.de",
+    "freenet.de",
+    "libero.it",
+    "virgilio.it",
+    "orange.fr",
+    "wanadoo.fr",
+    "laposte.net",
+    "mail.ru",
+    "yandex.ru",
+    "naver.com",
+    "daum.net",
+    "hanmail.net",
+    "qq.com",
+    "163.com",
+    "126.com",
+    "sina.com",
+    "yeah.net"
+  ],
+
+  "microsoft": [
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "msn.com",
+    "windowslive.com",
+    "outlook.co.uk",
+    "outlook.in",
+    "outlook.fr",
+    "outlook.de",
+    "outlook.com.au"
+  ],
+
+  "apple": [
+    "icloud.com",
+    "me.com",
+    "mac.com"
+  ],
+
+  "privacy_focused": [
+    "protonmail.com",
+    "proton.me",
+    "tutanota.com",
+    "tutamail.com",
+    "disroot.org",
+    "mailfence.com",
+    "startmail.com",
+    "ctemplar.com",
+    "cock.li",
+    "tuta.io"
+  ],
+
+  "education": [
+    "edu",
+    "ac.uk",
+    "ac.in",
+    "edu.au"
+  ],
+
+  "disposable": [
+    "mailinator.com",
+    "guerrillamail.com",
+    "tempmail.com",
+    "throwam.com",
+    "sharklasers.com",
+    "10minutemail.com",
+    "trashmail.com",
+    "yopmail.com",
+    "maildrop.cc",
+    "spamgourmet.com"
+  ]
+}

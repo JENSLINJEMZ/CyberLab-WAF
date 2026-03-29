@@ -21,19 +21,9 @@ class InputValidation {
         return null; // No validation errors
     }
     public static function EmailValidation($email){
-        $allow = [
-            "gmail.com",
-            "yahoo.com",
-            "outlook.com",
-            "hotmail.com",
-            "aol.com",
-            "icloud.com",
-            "mail.com",
-            "zoho.com",
-            "protonmail.com",
-        ];
+        $allow = json_decode(file_get_contents("collections/emailvalidation.json"), true);
         $domain = substr($email, strrpos($email, '@') + 1);
-        if (!in_array($domain, $allow)) {
+        if (!in_array($domain, $allow['global'])) {
             return "Email domain is not allowed.";
         }
         return null; // No validation errors

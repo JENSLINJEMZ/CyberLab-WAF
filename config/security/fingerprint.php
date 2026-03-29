@@ -17,12 +17,11 @@ class DeviceIntelligence
         $this->detect    = new MobileDetect();
     }
 
-    public function analyze(): array
-    {
+    public function analyze(): array{
         $this->report = [
             'status_code'  => 200,
             'is_success'   => true,
-            'failed_reason'=> null,
+            'failed_reason'=> 'Analysis pending',   // ← placeholder until applyRiskStatus() runs
             'device'       => $this->getDeviceInfo(),
             'os'           => $this->getOSInfo(),
             'browser'      => $this->getBrowserInfo(),
@@ -46,40 +45,132 @@ class DeviceIntelligence
 
     // ── STATUS ──────────────────────────────────────────────────────────────
 
-    private function applyRiskStatus(): void
-    {
+    private function applyRiskStatus(): void{
         $risk    = $this->report['risk_score'];
         $sec     = $this->report['security'];
-        $ua      = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $net     = $this->report['network'];
+        $browser = $this->report['browser'];
+        $device  = $this->report['device'];
+        $os      = $this->report['os'];
+        $geo     = $this->report['geolocation'];
+        $hints   = $this->report['client_hints'];
+        $request = $this->report['request'];
         $reasons = [];
 
-        // Collect all failure reasons
-        if ($sec['is_bot'])        $reasons[] = 'Bot user agent detected';
-        if ($sec['is_headless'])   $reasons[] = 'Headless browser detected';
-        if ($sec['is_crawler'])    $reasons[] = 'Crawler detected';
-        if ($sec['ua_mismatch'])   $reasons[] = 'User agent and client hints mismatch';
-        if ($sec['suspicious_ua']) $reasons[] = 'Suspicious user agent';
+        // ── LAYER 1: AUTOMATED AGENT DETECTION (Instant Block) ──────────────────
+        if ($sec['is_bot'])
+            $reasons[] = '[BOT] Automated bot signature found in user agent string';
 
+        if ($sec['is_headless'])
+            $reasons[] = '[HEADLESS] Headless browser environment detected (e.g. Puppeteer, Playwright, PhantomJS)';
+
+        if ($sec['is_crawler'])
+            $reasons[] = '[CRAWLER] Web crawler or scraper tool identified (e.g. curl, wget, python-requests)';
+
+        // ── LAYER 2: USER AGENT INTEGRITY ───────────────────────────────────────
+        if ($sec['ua_mismatch'])
+            $reasons[] = '[UA_MISMATCH] User agent claims do not match Sec-CH-UA client hint headers';
+
+        if ($sec['suspicious_ua'])
+            $reasons[] = '[SUSPICIOUS_UA] User agent is malformed, too short, or contains injection patterns';
+
+        if ($browser['name'] === 'Unknown')
+            $reasons[] = '[UNKNOWN_BROWSER] Could not identify any known browser from the user agent';
+
+        if (empty($device['user_agent']))
+            $reasons[] = '[MISSING_UA] No user agent string was provided in the request';
+
+        // ── LAYER 3: NETWORK & IP INTEGRITY ─────────────────────────────────────
+        if ($net['is_private_ip'])
+            $reasons[] = '[PRIVATE_IP] Request originated from a private or reserved IP address: ' . $net['ip'];
+
+        if ($net['proxy']['detected'])
+            $reasons[] = '[PROXY] Request is being routed through a proxy — headers: ' . implode(', ', $net['proxy']['headers']);
+
+        if (!$net['https'])
+            $reasons[] = '[INSECURE] Request was made over an unencrypted HTTP connection, not HTTPS';
+
+        if ($net['ip'] === '0.0.0.0')
+            $reasons[] = '[INVALID_IP] Could not resolve a valid client IP address from the request';
+
+        // ── LAYER 4: CLIENT HINTS INTEGRITY ─────────────────────────────────────
+        if (empty($hints['platform']))
+            $reasons[] = '[MISSING_PLATFORM] Sec-CH-UA-Platform client hint is absent';
+
+        if (empty($hints['ua_brands']))
+            $reasons[] = '[MISSING_UA_BRANDS] Sec-CH-UA brand list client hint is absent';
+
+        if (!empty($hints['mobile']) && $hints['mobile'] !== ($device['is_mobile'] ? '?1' : '?0'))
+            $reasons[] = '[HINT_MOBILE_MISMATCH] Sec-CH-UA-Mobile hint conflicts with detected device type';
+
+        if (!empty($hints['platform']) && !empty($os['name'])
+            && stripos($hints['platform'], $os['name']) === false
+            && $os['name'] !== 'Unknown')
+            $reasons[] = '[HINT_OS_MISMATCH] Sec-CH-UA-Platform "' . $hints['platform'] . '" does not match detected OS "' . $os['name'] . '"';
+
+        // ── LAYER 5: REQUEST INTEGRITY ───────────────────────────────────────────
+        if (empty($browser['accept_language']))
+            $reasons[] = '[MISSING_LANG] Accept-Language header is missing — uncommon in real browsers';
+
+        if (empty($browser['accept_encoding']))
+            $reasons[] = '[MISSING_ENCODING] Accept-Encoding header is missing — uncommon in real browsers';
+
+        if (!$sec['csrf_token_present'] && in_array($request['method'], ['POST', 'PUT', 'PATCH', 'DELETE']))
+            $reasons[] = '[MISSING_CSRF] CSRF token header is absent on a state-mutating ' . $request['method'] . ' request';
+
+        if (!empty($request['content_type'])
+            && stripos($request['content_type'], 'application/json') === false
+            && stripos($request['content_type'], 'multipart') === false
+            && stripos($request['content_type'], 'application/x-www-form-urlencoded') === false
+            && in_array($request['method'], ['POST', 'PUT', 'PATCH']))
+            $reasons[] = '[INVALID_CONTENT_TYPE] Unexpected Content-Type "' . $request['content_type'] . '" for a ' . $request['method'] . ' request';
+
+        // ── LAYER 6: GEO / ORIGIN INTEGRITY ─────────────────────────────────────
+        if (empty($geo['country']))
+            $reasons[] = '[MISSING_GEO] Could not determine the request origin country';
+
+        if (!empty($sec['origin']) && !empty($request['host'])
+            && parse_url($sec['origin'], PHP_URL_HOST) !== $request['host'])
+            $reasons[] = '[ORIGIN_MISMATCH] Origin header "' . $sec['origin'] . '" does not match server host "' . $request['host'] . '"';
+
+        // ── LAYER 7: DEVICE CONSISTENCY ──────────────────────────────────────────
+        if ($device['type'] === 'Desktop' && $device['brand'] !== 'Unknown')
+            $reasons[] = '[DEVICE_CONFLICT] Desktop device type reported but a mobile brand "' . $device['brand'] . '" was detected';
+
+        if ($os['name'] === 'iOS' && $device['type'] === 'Desktop')
+            $reasons[] = '[OS_DEVICE_CONFLICT] iOS operating system detected on a non-mobile device type';
+
+        if ($os['name'] === 'Android' && $device['type'] === 'Desktop')
+            $reasons[] = '[OS_DEVICE_CONFLICT] Android operating system detected on a non-mobile device type';
+
+        // ── LAYER 8: DO-NOT-TRACK & PRIVACY FLAGS ────────────────────────────────
+        if ($browser['do_not_track'] && !empty($sec['referrer']))
+            $reasons[] = '[DNT_REFERRER_CONFLICT] Do-Not-Track is enabled but a referrer header is still being sent';
+
+        // ── APPLY FINAL STATUS ───────────────────────────────────────────────────
         if (!empty($reasons)) {
-            // Failed — blocked request
+            // Hard block — one or more critical violations detected
             $this->report['status_code']   = 403;
             $this->report['is_success']    = false;
-            $this->report['failed_reason'] = implode(', ', $reasons);
+            $this->report['failed_reason'] = implode(' | ', $reasons);
+
         } elseif ($risk['level'] === 'HIGH') {
-            // High risk but not outright blocked
+            // High risk score — request rejected but not a hard block
             $this->report['status_code']   = 422;
             $this->report['is_success']    = false;
-            $this->report['failed_reason'] = 'High risk score (' . $risk['score'] . '/100): ' . implode(', ', $risk['flags']);
+            $this->report['failed_reason'] = 'High risk score (' . $risk['score'] . '/100) — flags: ' . implode(', ', $risk['flags']);
+
         } elseif ($risk['level'] === 'MEDIUM') {
-            // Medium risk — success but flagged
+            // Medium risk — allowed but flagged for review
             $this->report['status_code']   = 200;
             $this->report['is_success']    = true;
-            $this->report['failed_reason'] = 'Flagged: ' . implode(', ', $risk['flags']);
+            $this->report['failed_reason'] = 'Flagged for review — medium risk score (' . $risk['score'] . '/100): ' . implode(', ', $risk['flags']);
+
         } else {
-            // All clear
+            // All clear — low risk, no violations
             $this->report['status_code']   = 200;
             $this->report['is_success']    = true;
-            $this->report['failed_reason'] = null;
+            $this->report['failed_reason'] = 'No issues detected — risk score ' . $risk['score'] . '/100 (LOW)';
         }
     }
 
